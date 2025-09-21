@@ -1,0 +1,23 @@
+{
+    "name": "jpbgomes/laravel-database-backup",
+    "description": "A simple Laravel package to backup MySQL databases and send them via email.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Jpbgomes\\DatabaseBackup\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Jpbgomes\\DatabaseBackup\\BackupServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": ">=8.0",
+        "illuminate/support": ">=9.0",
+        "symfony/process": "^6.0|^7.0"
+    }
+}

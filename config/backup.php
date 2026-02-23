@@ -6,23 +6,41 @@ return [
     |--------------------------------------------------------------------------
     | Backup Storage Path
     |--------------------------------------------------------------------------
-    | Where backup files should be temporarily stored before being emailed.
     */
     'path' => storage_path('app/backups'),
 
     /*
     |--------------------------------------------------------------------------
-    | Backup Recipient Email
+    | Backup Recipients (comma separated in .env)
     |--------------------------------------------------------------------------
-    | Default email address where database backups will be sent.
     */
-    'recipient' => env('BACKUP_EMAIL', 'admin@example.com'),
+    'recipients' => array_filter(
+        array_map('trim', explode(',', env('BACKUP_EMAIL', 'admin@example.com')))
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Zip Password (optional)
+    |--------------------------------------------------------------------------
+    | Leave null if no password protection is required.
+    */
+    'zip_password' => env('BACKUP_ZIP_PASSWORD', null),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Additional Files / Folders to Include
+    |--------------------------------------------------------------------------
+    | Paths relative to base_path()
+    */
+    'include' => [
+        // 'storage/app/public',
+        // '.env',
+    ],
 
     /*
     |--------------------------------------------------------------------------
     | Keep Local Copy
     |--------------------------------------------------------------------------
-    | Whether to keep the backup file locally after sending.
     */
     'keep_local' => false,
 ];

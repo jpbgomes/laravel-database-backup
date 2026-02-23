@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace Jpbgomes\DatabaseBackup\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;

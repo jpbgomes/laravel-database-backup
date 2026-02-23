@@ -6,11 +6,13 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\Process\Process;
 use ZipArchive;
+use RecursiveIteratorIterator;
+use RecursiveDirectoryIterator;
 
 class BackupDatabase extends Command
 {
     protected $signature = 'backup:database';
-    protected $description = 'Backup the database, zip it and send via email';
+    protected $description = 'Backup the database, zip it (with optional password) and send via email';
 
     public function handle()
     {
@@ -40,7 +42,6 @@ class BackupDatabase extends Command
             "--host={$databaseHost}",
             $databaseName,
         ]);
-
         $process->run();
 
         if (!$process->isSuccessful()) {
@@ -61,7 +62,6 @@ class BackupDatabase extends Command
         |--------------------------------------------------------------------------
         */
         $zip = new ZipArchive();
-
         if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             $this->error('Could not create ZIP archive.');
             return 1;
@@ -70,15 +70,15 @@ class BackupDatabase extends Command
         // Add SQL file
         $zip->addFile($sqlFile, basename($sqlFile));
 
-        // Add extra files/folders
-        foreach (config('backup.include', []) as $path) {
-            $fullPath = base_path($path);
-
-            if (file_exists($fullPath)) {
-                if (is_dir($fullPath)) {
-                    $this->addFolderToZip($fullPath, $zip);
-                } else {
-                    $zip->addFile($fullPath, basename($fullPath));
+        // Add extra files/folders recursively
+        $includes = config('backup.include', []);
+        foreach ($includes as $item) {
+            $path = base_path($item);
+            if (file_exists($path)) {
+                if (is_file($path)) {
+                    $zip->addFile($path, $item);
+                } elseif (is_dir($path)) {
+                    $this->addFolderToZip($path, $zip, $item);
                 }
             }
         }
@@ -102,9 +102,13 @@ class BackupDatabase extends Command
         | Send Email
         |--------------------------------------------------------------------------
         */
-        $recipients = config('backup.recipients');
+        $recipients = config('backup.recipients', []);
         $appName    = config('app.name');
         $emailTimestamp = now()->toDateTimeString();
+
+        if (!is_array($recipients)) {
+            $recipients = [$recipients];
+        }
 
         foreach ($recipients as $recipient) {
             Mail::raw("{$appName} Database Backup attached (ZIP).", function ($message) use ($recipient, $zipFile, $appName, $emailTimestamp) {
@@ -114,8 +118,9 @@ class BackupDatabase extends Command
             });
         }
 
-        $this->info("Backup ZIP created and emailed successfully.");
+        $this->info("Backup ZIP created and emailed successfully to: " . implode(', ', $recipients));
 
+        // Remove ZIP if not keeping locally
         if (!config('backup.keep_local') && file_exists($zipFile)) {
             unlink($zipFile);
             $this->info('Temporary ZIP file removed.');
@@ -124,20 +129,24 @@ class BackupDatabase extends Command
         return 0;
     }
 
+    /**
+     * Recursively add folder contents to ZIP archive
+     */
     private function addFolderToZip($folder, ZipArchive $zip, $parentFolder = '')
     {
-        $files = scandir($folder);
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($folder, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
 
         foreach ($files as $file) {
-            if ($file != '.' && $file != '..') {
-                $filePath = $folder . '/' . $file;
-                $localPath = $parentFolder ? $parentFolder . '/' . $file : $file;
-
-                if (is_dir($filePath)) {
-                    $this->addFolderToZip($filePath, $zip, $localPath);
-                } else {
-                    $zip->addFile($filePath, $localPath);
-                }
+            $filePath = $file->getRealPath();
+            $relativePath = $parentFolder . '/' . substr($filePath, strlen($folder) + 1);
+            if ($file->isDir()) {
+                // Optionally add empty folders
+                $zip->addEmptyDir($relativePath);
+            } else {
+                $zip->addFile($filePath, $relativePath);
             }
         }
     }
